@@ -1,0 +1,281 @@
+﻿'this library is used to help with loading data to the APSV3_ActPerDef table as well as writing the actperdef.lst text file.
+'populate the data in to the Datatable and the script will format the data accordingly and save it to the database.
+
+'Datatable dtAPD is for writing your records
+'COLUMNNAME		DATATYPE	SIZE	FORMAT
+'ID				STRING		13		*FOR WORK CENTER EXCEPTIONS  '1WWWW MMDDYY' where 1 is the type, and WWWW is the work center.
+'ResType		STRING				1 for work center exceptions
+'ResName		STRING		5		4 characters for work center, 5 for employee number
+'PDate			STRING				Enter as MM/DD/YYYY *
+'WkDay			LONG		1		0 THROUGH 7, 0 = Sunday, 7 = Saturday
+'BPer0			STRING				Enter as HH:NN:SS in 24hr format **
+'BPer1			""					""
+'BPer2			""					""
+'BPer3			""					""
+'BPer4			""					""
+'BPer5			""					""
+'EPL0			FLOAT				Enter as  H.M  Example  3.5 hours ***
+'EPL1			""					""
+'EPL2			""					""
+'EPL3			""					""
+'EPL4			""					""
+'EPL5			""					""
+'PerMult0		FLOAT				Enter as 1, 2, 3 etc..   ****
+'PerMult1		""					""
+'PerMult2		""					""
+'PerMult3		""					""
+'PerMult4		""					""
+'PerMult5		""					""
+'TotCap			FLOAT				Calculated Value "DO NOT ENTER"
+'PIU			INTEGER				Calculated Value "DO NOT ENTER"
+
+'*   	Enter the date only, the script will format it correctly
+'**		All 6 BPer columns are used to define the "Start Time" of the exception period.  Enter HH:NN:SS AM or PM
+'***	All 6 EPL columns are used to define the duration of the exception in hours.
+'****	All 6 PerMult Columns are used to define the number of machines for "infite" work centers.  Finite work centers will always be 1
+ 
+
+Program.Sub.Preflight.Start
+f.Data.Datatable.Create("dtAPD",True)
+f.Data.Datatable.AddColumn("dtAPD","ID","STRING","",13)
+F.Data.Datatable.AddColumn("dtAPD","ResType","LONG",1)
+F.Data.Datatable.AddColumn("dtAPD","ResName","STRING","",5)
+F.Data.Datatable.AddColumn("dtAPD","PDate","DATETIME","1900-01-01 00:00:00.000")
+F.Data.Datatable.AddColumn("dtAPD","WkDay","LONG")
+F.Data.Datatable.AddColumn("dtAPD","BPer0","STRING","1899-12-30 00:00:00.000")
+F.Data.Datatable.AddColumn("dtAPD","BPer1","STRING","1899-12-30 00:00:00.000")
+F.Data.Datatable.AddColumn("dtAPD","BPer2","STRING","1899-12-30 00:00:00.000")
+F.Data.Datatable.AddColumn("dtAPD","BPer3","STRING","1899-12-30 00:00:00.000")
+F.Data.Datatable.AddColumn("dtAPD","BPer4","STRING","1899-12-30 00:00:00.000")
+F.Data.Datatable.AddColumn("dtAPD","BPer5","STRING","1899-12-30 00:00:00.000")
+F.Data.Datatable.AddColumn("dtAPD","EPL0","FLOAT","0.0")
+F.Data.Datatable.AddColumn("dtAPD","EPL1","FLOAT","0.0")
+F.Data.Datatable.AddColumn("dtAPD","EPL2","FLOAT","0.0")
+F.Data.Datatable.AddColumn("dtAPD","EPL3","FLOAT","0.0")
+F.Data.Datatable.AddColumn("dtAPD","EPL4","FLOAT","0.0")
+F.Data.Datatable.AddColumn("dtAPD","EPL5","FLOAT","0.0")
+F.Data.Datatable.AddColumn("dtAPD","PerMult0","FLOAT","1.0")
+F.Data.Datatable.AddColumn("dtAPD","PerMult1","FLOAT","1.0")
+F.Data.Datatable.AddColumn("dtAPD","PerMult2","FLOAT","1.0")
+F.Data.Datatable.AddColumn("dtAPD","PerMult3","FLOAT","1.0")
+F.Data.Datatable.AddColumn("dtAPD","PerMult4","FLOAT","1.0")
+F.Data.Datatable.AddColumn("dtAPD","PerMult5","FLOAT","1.0")
+F.Data.Datatable.AddExpressionColumn("dtAPD","TotCap","FLOAT","(EPL0 * PerMult0) + (EPL1 * PerMult1) + (EPL2 * PerMult2) + (EPL3 * PerMult3) + (EPL4 * PerMult4) + (EPL5 * PerMult5)")
+F.Data.Datatable.AddColumn("dtAPD","PIU","LONG")
+
+
+Program.Sub.Preflight.End
+
+'Program.Sub.Main.Start
+'Function.Intrinsic.Debug.InvokeDebugger
+'Function.Intrinsic.Debug.Stop
+'f.Intrinsic.Control.CallSub(actPerDef_to_file)
+'Program.Sub.Main.End
+
+Program.Sub.APDPost.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+v.Local.iCount.Declare
+v.Local.sMap.Declare
+V.Local.iEPL.Declare
+v.Local.sBPER.Declare
+
+f.ODBC.Connection!con.opencompanyconnection
+'create an empty data from the database so field formats match exactly
+f.Data.Datatable.CreateFromSQL("dtPostAPD","con","select top 0 * from APSV3_ActPerDef",True)
+
+f.ODBC.Connection!con.Close
+
+'loop through each record to determine the value of PIU since an expression column won't work
+f.Intrinsic.Control.For(v.Local.iCount,0,v.DataTable.dtAPD.RowCount--,1)
+	'Formatting the data in the dtAPD datatable so it can be merged in to the dtPostAPD datatable
+	'BPER0
+	v.Local.sBPER.Set(v.DataTable.dtAPD(v.Local.iCount).BPER0!FIELDVALSTRING)
+	f.Intrinsic.Control.If(v.Local.sBPER,<>,"1899-12-30 00:00:00.000")
+		f.Intrinsic.String.Build("1899-12-30 {0}.000",v.Local.sBPER,v.Local.sBPER)
+		f.Data.Datatable.SetValue("dtAPD",v.Local.iCount,"BPER0",V.Local.sBPER)
+	f.Intrinsic.Control.EndIf
+	'BPER1
+	v.Local.sBPER.Set(v.DataTable.dtAPD(v.Local.iCount).BPER1!FIELDVALSTRING)
+	f.Intrinsic.Control.If(v.Local.sBPER,<>,"1899-12-30 00:00:00.000")
+		f.Intrinsic.String.Build("1899-12-30 {0}.000",v.Local.sBPER,v.Local.sBPER)
+		f.Data.Datatable.SetValue("dtAPD",v.Local.iCount,"BPER1",V.Local.sBPER)
+	f.Intrinsic.Control.EndIf
+	'BPER2
+	v.Local.sBPER.Set(v.DataTable.dtAPD(v.Local.iCount).BPER2!FIELDVALSTRING)
+	f.Intrinsic.Control.If(v.Local.sBPER,<>,"1899-12-30 00:00:00.000")
+		f.Intrinsic.String.Build("1899-12-30 {0}.000",v.Local.sBPER,v.Local.sBPER)
+		f.Data.Datatable.SetValue("dtAPD",v.Local.iCount,"BPER0",V.Local.sBPER)
+	f.Intrinsic.Control.EndIf
+	'BPER3
+	v.Local.sBPER.Set(v.DataTable.dtAPD(v.Local.iCount).BPER3!FIELDVALSTRING)
+	f.Intrinsic.Control.If(v.Local.sBPER,<>,"1899-12-30 00:00:00.000")
+		f.Intrinsic.String.Build("1899-12-30 {0}.000",v.Local.sBPER,v.Local.sBPER)
+		f.Data.Datatable.SetValue("dtAPD",v.Local.iCount,"BPER3",V.Local.sBPER)
+	f.Intrinsic.Control.EndIf
+	'BPER4
+	v.Local.sBPER.Set(v.DataTable.dtAPD(v.Local.iCount).BPER4!FIELDVALSTRING)
+	f.Intrinsic.Control.If(v.Local.sBPER,<>,"1899-12-30 00:00:00.000")
+		f.Intrinsic.String.Build("1899-12-30 {0}.000",v.Local.sBPER,v.Local.sBPER)
+		f.Data.Datatable.SetValue("dtAPD",v.Local.iCount,"BPER4",V.Local.sBPER)
+	f.Intrinsic.Control.EndIf
+	'BPER5
+	v.Local.sBPER.Set(v.DataTable.dtAPD(v.Local.iCount).BPER5!FIELDVALSTRING)
+	f.Intrinsic.Control.If(v.Local.sBPER,<>,"1899-12-30 00:00:00.000")
+		f.Intrinsic.String.Build("1899-12-30 {0}.000",v.Local.sBPER,v.Local.sBPER)
+		f.Data.Datatable.SetValue("dtAPD",v.Local.iCount,"BPER5",V.Local.sBPER)
+	f.Intrinsic.Control.EndIf
+	'PIU
+	V.Local.iEPL.Set(0)
+	f.Intrinsic.Control.If(v.DataTable.dtAPD(v.Local.iCount).EPL0!FIELDVAL,>,0)
+		f.Intrinsic.Math.Add(v.Local.iEPL,1,v.Local.iEPL)
+	f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.If(v.DataTable.dtAPD(v.Local.iCount).EPL1!FIELDVAL,>,0)
+		f.Intrinsic.Math.Add(v.Local.iEPL,1,v.Local.iEPL)
+	f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.If(v.DataTable.dtAPD(v.Local.iCount).EPL2!FIELDVAL,>,0)
+		f.Intrinsic.Math.Add(v.Local.iEPL,1,v.Local.iEPL)
+	f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.If(v.DataTable.dtAPD(v.Local.iCount).EPL3!FIELDVAL,>,0)
+		f.Intrinsic.Math.Add(v.Local.iEPL,1,v.Local.iEPL)
+	f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.If(v.DataTable.dtAPD(v.Local.iCount).EPL4!FIELDVAL,>,0)
+		f.Intrinsic.Math.Add(v.Local.iEPL,1,v.Local.iEPL)
+	f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.If(v.DataTable.dtAPD(v.Local.iCount).EPL5!FIELDVAL,>,0)
+		f.Intrinsic.Math.Add(v.Local.iEPL,1,v.Local.iEPL)
+	f.Intrinsic.Control.EndIf
+	f.Data.Datatable.SetValue("dtAPD",V.Local.iCount,"PIU",V.Local.iEPL)
+f.Intrinsic.Control.Next(v.Local.iCount)
+
+Function.Intrinsic.Debug.Stop
+
+f.Data.Datatable.Merge("dtAPD","dtPostAPD","False",2)
+
+F.ODBC.Connection!con.opencompanyconnection
+
+F.Data.Datatable.SaveToDB("dtPostAPD","con","APSV3_ActPerDef","ID",128)
+
+
+
+f.ODBC.Connection!con.Close
+
+f.Intrinsic.Control.CallSub(actPerDef_to_file)
+
+f.Intrinsic.Control.catch
+f.Intrinsic.Control.CallSub(catching,"sub",v.Ambient.CurrentSubroutine,"errorno",v.Ambient.ErrorNumber,"errordesc",v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+
+Program.Sub.APDPost.End
+
+Program.Sub.actPerDef_to_file.Start
+Function.Intrinsic.UI.UsePixels ' Allows you to use Pixels instead of Twips throughout
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+v.Local.sFile.Declare
+v.Local.iCount.Declare
+v.Local.iFields.Declare
+v.Local.sFields.Declare
+v.Local.sData.Declare
+V.Local.sLine.Declare
+V.Local.sText.Declare
+v.Local.bExists.Declare
+v.Local.iChunk.Declare
+
+'find the existing file, delete it, then open it for writing so we don't have to keep the stringbuilder object.
+f.Intrinsic.String.Build("{0}\Sched\{1}ActPerDef.lst",v.Caller.PluginsDir,v.Caller.CompanyCode,v.Local.sFile)
+f.Intrinsic.File.Exists(v.Local.sFile,v.Local.bExists)
+f.Intrinsic.Control.If(v.Local.bExists)
+	f.Intrinsic.File.DeleteFile(v.Local.sFile)
+f.Intrinsic.Control.EndIf
+
+
+f.ODBC.Connection!act.opencompanyconnection
+
+f.Data.Datatable.CreateFromSQL("dtAct","act","select * from apsv3_actperdef",True)
+
+f.ODBC.Connection!act.Close
+
+f.Intrinsic.String.Split(v.DataTable.dtAct.FieldNames,"*!*",v.Local.sfields)
+
+
+f.Intrinsic.StringBuilder.Create("actper")
+
+'f.Intrinsic.UI.InvokeWaitDialog("Building LST file for APS","Plase Wait")
+
+f.Intrinsic.Control.For(v.Local.iCount,0,v.DataTable.dtAct.RowCount--,1)
+	'update the wait dialog to monitor status
+'	f.Intrinsic.UI.ChangeWaitStatus("Building LST file for APS",v.Local.iCount,0,v.DataTable.dtAct.RowCount--)
+	f.Intrinsic.String.Split(v.DataTable.dtAct(v.Local.iCount).FULLROW,"*!*",V.Local.sData)
+
+	f.Intrinsic.Control.For(v.Local.iFields,0,v.Local.sfields.UBound,1)
+'		f.Intrinsic.UI.ChangeWaitStatus("Parsing field data",v.Local.iFields,0,v.Local.sFields.UBound)
+		f.Intrinsic.Control.If(v.Local.iFields,<,24)
+			f.Intrinsic.Control.SelectCase(v.Local.sFields(v.Local.iFields))
+			'formatting depending on what field it is.
+					
+				f.Intrinsic.Control.Case("PDate")
+					F.Intrinsic.String.Format(V.Local.sData(V.Local.iFields),"mm/dd/yyyy",v.Local.sText)
+					f.Intrinsic.String.Build("{0}{1}{2}",V.Local.sLine,v.Local.sText,V.Ambient.Tab,V.Local.sLine)
+				
+				f.Intrinsic.Control.CaseAny("BPer0","BPer1","BPer2","BPer3","BPer4","BPer5")
+					f.Intrinsic.String.Format(v.Local.sData(v.Local.iFields),"hh:nn:ss AM/PM",V.Local.sText)
+					F.Intrinsic.String.Build("{0}{1}{2}",V.Local.sLine,v.Local.sText,V.Ambient.Tab,V.Local.sLine)
+					
+				f.Intrinsic.Control.CaseElse
+					f.Intrinsic.String.Build("{0}{1}{2}",V.Local.sLine,V.Local.sData(V.Local.iFields),V.Ambient.Tab,V.Local.sLine)
+			
+			f.Intrinsic.Control.EndSelect
+		f.Intrinsic.Control.Else
+			'this is the last element of the line, so don't add a "tab" to the line
+			f.Intrinsic.String.Build("{0}{1}",V.Local.sLine,V.Local.sData(V.Local.iFields),V.Local.sLine)
+		f.Intrinsic.Control.EndIf
+		
+	f.Intrinsic.Control.Next(v.Local.iFields)
+	
+	f.Intrinsic.StringBuilder.AppendLine("actper",v.Local.sLine)
+	
+	'clear the sline var for the next line of text
+	v.Local.sLine.Set("")
+	
+	
+f.Intrinsic.Control.Next(v.Local.iCount)
+
+v.Local.sData.Set("")
+
+f.Intrinsic.StringBuilder.ToString("actper",v.Local.sData)
+f.Intrinsic.File.String2File(v.Local.sFile,v.Local.sData)
+
+f.Intrinsic.StringBuilder.Dispose("actper")
+
+f.Intrinsic.Control.catch
+f.Intrinsic.Control.CallSub(act_catching,"sub",v.Ambient.CurrentSubroutine,"errorno",v.Ambient.ErrorNumber,"errordesc",v.Ambient.ErrorDescription)
+f.Intrinsic.Control.EndTry
+Program.Sub.actPerDef_to_file.End
+
+Program.Sub.act_Catching.Start
+v.Local.sError.declare(string)
+F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","gcg_####_actperdef.lib",V.Ambient.NewLine,v.Args.sub,V.Args.errorno,V.args.errordesc,V.Local.sError)
+f.Intrinsic.UI.Msgbox(v.Local.sError)
+
+Program.Sub.act_Catching.End
+
+
+Program.Sub.Catching.Start
+v.Local.sError.declare(string)
+F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_6550_actperdef.lst.lib",V.Ambient.NewLine,v.Args.sub,V.Args.errorno,V.args.errordesc,V.Local.sError)
+f.Intrinsic.UI.Msgbox(v.Local.sError)
+F.Intrinsic.Control.CallSub(LIB_UNLOAD)
+Program.Sub.Catching.End
+
+
+Program.Sub.lib_unload.Start
+f.Intrinsic.Control.End
+Program.Sub.lib_unload.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$dfinch$}$20211228075749475$}$2O16bu3pcn8yPLUxA6F2Klx+ibLK1Mdj/nPBEQUFPrTF0m5iJGSg5iDstCL3c7Ho4piz4X9cP90=
+Program.Sub.Comments.End
+
