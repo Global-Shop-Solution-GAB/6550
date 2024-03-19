@@ -1,0 +1,23 @@
+﻿Program.Sub.Preflight.Start
+
+Program.External.Include.Library("gcg_6550_actperdef_lst.lib")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+Function.Intrinsic.UI.UsePixels ' Allows you to use Pixels instead of Twips throughout
+
+
+Function.Intrinsic.Debug.InvokeDebugger
+Function.Intrinsic.Debug.Stop
+
+f.Data.Datatable.AddRow("dtAPD","ID","1CL01 122821","ResType","1","ResName","CL01","PDate","12/28/2021","WkDay",2,"Bper0","08:00:00","Bper1","14:00:00","EPL0",4.0,"EPL1",4.0,"PerMult0",1)
+
+f.Intrinsic.Control.CallSub(APDPost)
+
+
+Program.Sub.Main.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$dfinch$}$20211228082440207$}$2O16bu3pcn8yPLUxA6F2Klx+ibLK1Mdj/nPBEQUFPrTJ52YtehyE3223YWA3BV4YyrcDLbsIn48=
+Program.Sub.Comments.End
